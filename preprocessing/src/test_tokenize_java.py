@@ -163,7 +163,7 @@ def test_java_detokenizer_discarding_comments():
         tokens = tokenize_java(x)
         x_ = detokenize_java(tokens)
         tokens_ = tokenize_java(x_)
-        if tokens != tokens:
+        if tokens_ != tokens:
             line_diff = [j for j, (line, line_) in enumerate(
                 zip(tokens, tokens_)) if line != line_]
             raise Exception(

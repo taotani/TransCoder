@@ -14,11 +14,15 @@ import sys
 import tokenize
 from io import BytesIO
 
+
 import clang
 import preprocessing.src.javalang_tokenizer as javalang_tok
 from clang.cindex import TokenKind
 from preprocessing.src.timeout import timeout, TimeoutError
-from sacrebleu import tokenize_v14_international
+
+
+from preprocessing.src.tokenize_common import process_string, indent_lines
+from preprocessing.src.csharp_tokenize import tokenize_csharp
 
 TOK_NO_SPACE_BEFORE = {',', ';'}
 clang.cindex.Config.set_library_path('/usr/lib/llvm-7/lib/')
@@ -27,6 +31,10 @@ logging.basicConfig(
     filename='timeout_cpp_tokenizer_examples.log', level=logging.DEBUG)
 
 idx = clang.cindex.Index.create()
+
+"""
+Java Tokens
+"""
 
 JAVA_TOKEN2CHAR = {'STOKEN0': "//",
                    'STOKEN1': "/*",
@@ -45,9 +53,17 @@ JAVA_CHAR2TOKEN = {"//": ' STOKEN0 ',
                    '\\n': ' STOKEN6 '
                    }
 
+"""
+CPP Tokens
+"""
+
 CPP_TOKEN2CHAR = JAVA_TOKEN2CHAR.copy()
 CPP_CHAR2TOKEN = JAVA_CHAR2TOKEN.copy()
 
+
+"""
+Python Tokens
+"""
 PYTHON_TOKEN2CHAR = {'STOKEN0': '#',
                      'STOKEN1': "\\n",
                      'STOKEN2': '"""',
@@ -76,31 +92,7 @@ class ind_iter(object):
         if self.i < 0:
             raise StopIteration
 
-
-def process_string(tok, char2tok, tok2char, is_comment):
-    if is_comment:
-        tok = re.sub(' +', ' ', tok)
-        tok = re.sub(r"(.)\1\1\1\1+", r"\1\1\1\1\1", tok)
-        if len(re.sub(r'\W', '', tok)) < 2:
-            return ''
-    tok = tok.replace(' ', ' ▁ ')
-    for char, special_token in char2tok.items():
-        tok = tok.replace(char, special_token)
-    if tok.startswith(' STOKEN0'):
-        if tok.endswith('\n'):
-            tok = tok[:-1]
-        tok += ' ENDCOM'
-    tok = tok.replace('\n', ' STRNEWLINE ')
-    tok = tok.replace('\t', ' TABSYMBOL ')
-    tok = re.sub(' +', ' ', tok)
-    tok = tokenize_v14_international(tok)
-    tok = re.sub(' +', ' ', tok)
-    for special_token, char in tok2char.items():
-        tok = tok.replace(special_token, char)
-    tok = tok.replace('\r', '')
-
-    return tok
-
+    
 
 def tokenize_python(s, keep_comments=False):
     try:
@@ -436,23 +428,6 @@ def detokenize_cpp(s):
     untok_s = indent_lines(lines)
     untok_s = untok_s.replace('CB_COLON', '};').replace(
         'CB_COMA', '},').replace('CB_', '}').replace('OB_', '{')
-    return untok_s
-
-
-def indent_lines(lines):
-    prefix = ''
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if re.match('CB_COLON|CB_COMA|CB_', line):
-            prefix = prefix[2:]
-            line = prefix + line
-        elif line.endswith('OB_'):
-            line = prefix + line
-            prefix += '  '
-        else:
-            line = prefix + line
-        lines[i] = line
-    untok_s = '\n'.join(lines)
     return untok_s
 
 
